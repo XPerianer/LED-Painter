@@ -1,0 +1,235 @@
+<!--
+//  LED-Painter, to draw live on a LED-Matrix
+//  Copyright (C) 2015 Dominik Meier(XPerianer)
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//  E-Mail: Hiscore.pressthebutton@hotmail.de -->
+
+
+
+
+
+<html>
+<title>LED-Painter by XPerianer</title>
+
+<style type="text/css">
+	body {
+		padding: 0;
+		margin: 0;
+		overflow: hidden;
+	}
+	canvas {
+		width: 640;
+	}
+	#control{
+		width: 614px;
+		border:3px solid green;
+		border-radius: 3px;
+    padding: 10px;
+		position: relative;
+		height: 100px;
+	}
+
+	#pencilchoose{
+		width: 150px;
+		float: left;
+		margin-left: 100px;
+
+		position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+	}
+	#colorchoose{
+		width: 300px;
+		margin-left: 300px;
+		position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+	}
+
+</style>
+
+
+
+
+<body>
+
+	<canvas id="canvas"></canvas>
+	<div id="control">
+	<form id="pencilchoose">
+		<input type="radio" name="pencil" value="Draw" onclick="pencilState=0;" checked>Draw
+		<br>
+		<input type="radio" name="pencil" value="Erase" onclick="pencilState=1;">Erase
+		<br>
+	</form>
+
+
+
+		<form id="colorchoose">
+			<input class="color" type="range" min="0" max="255" value="255" onchange="color.r = this.value;draw();" />Red
+			<br>
+			<input class="color" type="range" min="0" max="255" value="255" onchange="color.g = this.value;draw();" />Green
+			<br>
+			<input class="color" type="range" min="0" max="255" value="255" onchange="color.b = this.value;draw();" />Blue
+			<br>
+		</form>
+	</div>
+</body>
+
+
+
+<script type="text/javascript">
+	// Initialize canvas and required variables
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d"); // Create canvas context
+	var mousePos;
+	var clicked = false;
+	var pencilState = 0; // 0 = Draw, 1= Erase
+	var color = {
+		r: "255",
+		g: "255",
+		b: "255",
+	};
+
+
+	// Set the canvas's height and width to full screen
+	canvas.width = 640;
+	canvas.height = 740; // Status menu since 640
+
+
+
+	function draw() {
+		ctx.fillStyle = "black";
+		ctx.fillRect(0, 0, 640, 740);
+
+		for (i = 0; i < matrix.length; i++) { //Draw Pixels
+			for (j = 0; j < matrix[i].length; j++) {
+				matrix[i][j].draw();
+			}
+		}
+
+		//Color Status:
+		ctx.beginPath();
+		ctx.font="20px Consolas";
+		ctx.fillStyle = "white";
+		ctx.fillText("Color:",150,695);
+		ctx.arc(250, 690, 30, 0, 2 * Math.PI, false);
+		ctx.fillStyle = "rgb(" + color.r + "," + color.g + "," + color.b + ")"; //Draw the actual color
+		ctx.fill();
+
+		ctx.beginPath();
+		ctx.font="15px Consolas";
+		ctx.fillStyle = "white";
+		ctx.fillText("Red:   " + color.r, 350, 672);
+		ctx.fillText("Green: " + color.g, 350, 692);
+		ctx.fillText("Blue:  " + color.b, 350, 712);
+
+	}
+
+	function getMousePos(canvas, evt) {
+		var rect = canvas.getBoundingClientRect();
+		return {
+			x: evt.clientX - rect.left,
+			y: evt.clientY - rect.top
+		};
+	}
+
+	function changePixel() { //Function used when the mouse is clicking or dragging on the canvas
+		var x = Math.round(mousePos.x / 20 - 0.5);
+		var y = Math.round(mousePos.y / 20 - 0.5);
+		if (pencilState == 0) {
+			if (matrix[x][y].color.g != color.g || matrix[x][y].color.r != color.r || matrix[x][y].color.b != color.b || matrix[x][y].light == false) { //Only draw if something changed
+				matrix[x][y].color.g = color.g;
+				matrix[x][y].color.r = color.r;
+				matrix[x][y].color.b = color.b;
+				matrix[x][y].light = true;
+				socket.send("[" + x + "," + y + "," + (0+matrix[x][y].light) + "," + matrix[x][y].color.r + ","  + matrix[x][y].color.g + "," + matrix[x][y].color.b + "]");
+				draw();
+			}
+		} else if (pencilState == 1) {
+			if (matrix[x][y].light == true) {
+				matrix[x][y].light = false;
+				socket.send("[" + x + "," + y + "," + (0+matrix[x][y].light) + "," + matrix[x][y].color.r + ","  + matrix[x][y].color.g + "," + matrix[x][y].color.b + "]");
+				draw();
+			}
+		}
+	}
+
+	function Pixel(x, y) {
+		this.x = x;
+		this.y = y;
+		this.light = false;
+		this.color = {
+			r: 0,
+			g: 0,
+			b: 0,
+		}
+		this.draw = function() {
+			ctx.beginPath();
+			ctx.arc(x + 10, y + 10, 7, 0, 2 * Math.PI, false); //To start on the left top corner
+			if (this.light) {
+				ctx.fillStyle = "rgb(" + this.color.r + "," + this.color.g + "," + this.color.b + ")";
+				ctx.fill();
+			} else {
+				ctx.fillStyle = "black";
+				ctx.fill();
+			}
+			ctx.lineWidth = 1;
+			ctx.strokeStyle = 'white';
+			ctx.stroke();
+		}
+	}
+	var matrix = new Array(32);
+	for (i = 0; i < matrix.length; i++) {
+		matrix[i] = new Array(32);
+	}
+
+	for (i = 0; i < matrix.length; i++) {
+		for (j = 0; j < matrix[i].length; j++) {
+			matrix[i][j] = new Pixel(i * 20, j * 20);
+		}
+	}
+
+
+	canvas.addEventListener('mousedown', function(evt) {
+		clicked = true;
+		mousePos = getMousePos(canvas, evt);
+		changePixel();
+
+	}, false);
+	canvas.addEventListener('mouseup', function(evt) {
+		clicked = false;
+	}, false);
+	canvas.addEventListener('mousemove', function(evt) {
+		if (clicked) {
+			mousePos = getMousePos(canvas, evt);
+
+			changePixel();
+		}
+	}, false);
+
+	draw();
+
+
+
+	var socket = new WebSocket('ws://raspberrypi:8000');
+	socket.onopen = function () {
+	};
+	socket.onmessage = function (message) {
+	};
+	socket.onerror = function (error) {
+		console.log('WebSocket error: ' + error);
+	};
+
+
+</script>
+
+</html>
